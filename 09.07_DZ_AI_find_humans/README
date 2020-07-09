@@ -1,0 +1,4 @@
+You need 'yolov3.weights' and 'yolov3.cfg' for work this script.
+You can download them using commands:
+gdown --id "1L_o2knGNuMZzItjFGd166ZzfLHYSDo1C" -q
+wget https://raw.githubusercontent.com/AlexeyAB/darknet/master/cfg/yolov3.cfg -q
