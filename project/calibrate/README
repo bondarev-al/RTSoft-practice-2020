@@ -1,0 +1,2 @@
+Пример запуска калибровки:
+python calibrate.py --image_dir ./camera1/ --image_format png --prefix image --square_size 2.4 --width 8 --height 6  --save_file camera1.yml 
