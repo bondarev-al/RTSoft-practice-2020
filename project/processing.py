@@ -38,9 +38,8 @@ iRot = np.linalg.inv(rotM)
 iCam = np.linalg.inv(camMat)
 
 def get_coord(point):
-    # un_point = cv2.undistortPoints(np.array(point).astype(np.float32), camera_matrix, dist_matrix, P = camera_matrix)
-    # un_point = un_point.ravel().tolist()
-    un_point = point
+    un_point = cv2.undistortPoints(np.array(point).astype(np.float32), camera_matrix, dist_matrix, P = camera_matrix)
+    un_point = un_point.ravel().tolist()
     uvPoint = np.matrix([un_point[0], un_point[1], 1]).T
     tempMat = np.matmul(np.matmul(iRot, iCam), uvPoint)
     tempMat2 = np.matmul(iRot, translation_vector)
@@ -59,11 +58,9 @@ def onMouse(event, x, y, flags, param):
     point = get_coord([x,y])
     cv2.circle(table, (int(point[0] * scale), int(point[2] * scale)), 8, COLOR, -1)
     cv2.imshow('Table',table)
-    # print(point)
 
 cap = cv2.VideoCapture(0)
 ret, frame = cap.read()
-cv2.undistort(frame, camera_matrix, dist_matrix)
 cv2.imshow('Sizing',frame)
 cv2.setMouseCallback('Sizing', onMouse)
 
@@ -72,7 +69,6 @@ cv2.imshow('Table',table)
 
 while (True):
     ret, frame = cap.read()
-    cv2.undistort(frame, camera_matrix, dist_matrix)
     cv2.imshow('Sizing',frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
