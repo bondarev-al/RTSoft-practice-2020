@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
-from math import sqrt 
+from math import sqrt, acos, pi 
 from pyzbar import pyzbar
+import json
+import paho.mqtt.client as mqtt
 import processing as pr #it is my file
 
 def load_coefficients(path):
@@ -187,8 +189,37 @@ def check_QR_code(im_src, points_of_edge):
         barcodes = pyzbar.decode(equ_t)
         if barcodes != []:
             barcodeData = barcodes[0].data.decode("utf-8")
-            return "QR code detected. Data: {}".format(barcodeData)
-    return "QR code not detected"
+            return True, barcodeData
+            # barcodeData = barcodes[0].data.decode("utf-8")
+            # return "QR code detected. Data: {}".format(barcodeData)
+    # return "QR code not detected"
+    return False, ""
+
+client = mqtt.Client()
+client.connect("localhost", 1883)
+scale_v = 10
+truck_h = 0.5
+truck_obj = [{"id": "trucks_1", "position":  [42.0 / scale_v / 2, 0.25,  - 28.0 / scale_v / 2], "euler": [0, 0,  0],  "shape":[42.0 / scale_v, truck_h,  28.0 / scale_v], "color": [66, 255, 249]}] 
+data = {}
+boxes = []
+data["boxes"] = boxes
+data["trucks"] = truck_obj
+data_out_boxes = json.dumps(data)
+client.publish("scene", data_out_boxes, qos=0, retain=False)
+
+def show_box(cent, angle, shape):
+    boxes = [{"id": "box_1", "position":  cent, "euler": [0, angle,  0],  "shape": shape, "color": [66, 0, 249]}]
+    # box_obj = {}
+    # box_obj["id"] = "box_2"
+    # box_obj["position"] = [0,  truck_h, 0]
+    # box_obj["euler"] = [0,  10,  0]
+    # box_obj["shape"] = [ 1,  1,  1]
+    # box_obj["color"] = [0, 0, 255]
+    # boxes.append(box_obj) 
+    data["boxes"] = boxes
+    data["trucks"] = truck_obj
+    data_out_boxes = json.dumps(data)
+    client.publish("scene", data_out_boxes, qos=0, retain=False)
 
 def anal_box(Image, cornels):
     top_and_bot = sort_cornel(cornels)
@@ -197,24 +228,83 @@ def anal_box(Image, cornels):
     coord_bot[0] = get_coord(top_and_bot["bot"][0])
     coord_top[0] = get_coord_top(top_and_bot["top"][0], coord_bot[0])
     coord_bot[1] = get_coord(top_and_bot["bot"][1])
-    h = coord_top[0][1] - coord_bot[1][0]
-    w = 
+    h = coord_top[0][1] - coord_bot[1][1]
+    w = sqrt((coord_bot[0][0] - coord_bot[1][0]) ** 2 + (coord_bot[0][2] - coord_bot[1][2]) ** 2)
+    temp_cent = [0, 0, 0]
+    temp_cent[0] = (coord_bot[0][0] + coord_bot[1][0]) / 2
+    temp_cent[1] = coord_top[0][1] / 2
+    temp_cent[2] = (coord_bot[0][2] + coord_bot[1][2]) / 2
+    offset_cent = [0, 0, 0]
+    if top_and_bot["bot"][2] != []:
+        coord_bot[2] = get_coord(top_and_bot["bot"][2])
+        d = sqrt((coord_bot[1][0] - coord_bot[2][0]) ** 2 + (coord_bot[1][2] - coord_bot[2][2]) ** 2)
+        offset_cent[0] = (coord_bot[2][0] - coord_bot[1][0]) / 2
+        offset_cent[2] = (coord_bot[2][2] - coord_bot[1][2]) / 2
+    elif top_and_bot["top"][3] != []:
+        coord_top[3] =  get_coord(top_and_bot["top"][3], coord_top[0][1])
+        d = sqrt((coord_top[0][0] - coord_top[3][0]) ** 2 + (coord_top[0][2] - coord_top[3][2]) ** 2)
+        offset_cent[0] = (coord_top[3][0] - coord_top[0][0]) / 2
+        offset_cent[2] = (coord_top[3][2] - coord_top[0][2]) / 2
+    else:
+        d = w
+        offset_cent[0] = d / 2
+    temp_cent[0] += offset_cent[0]
+    temp_cent[2] += offset_cent[2]
+    cent = temp_cent
+    temp_cent = [cent[0], 0, cent[2]]
+    temp_v = [- d / 2, 0, - w / 2]
+    temp_v1 = [coord_bot[0][0] - temp_cent[0], 0, coord_bot[0][2] - temp_cent[2]]
+    prod_v = temp_v[0] * temp_v1[0] + temp_v[2] * temp_v1[2]
+    mod_v = sqrt(temp_v[0] ** 2 + temp_v[2] ** 2)
+    mod_v1 = sqrt(temp_v1[0] ** 2 + temp_v1[2] ** 2)
+    angle = acos(prod_v / mod_v / mod_v1) * 180 / pi
+    shape = [d / scale_v, h / scale_v, w /scale_v]
+    cent[0] /= scale_v
+    cent[1] = cent[1] / scale_v + truck_h
+    cent[2] /= - scale_v
+    show_box(cent, angle, shape)
+    
+    find_QR = False
+    points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
+    find_QR, data = check_QR_code(Image, points_of_edge)
+    if find_QR:
+        print("QR code detected. Data: {}".format(data))
+    else:
+        if top_and_bot["bot"][2] != []:
+            points_of_edge = [top_and_bot["bot"][1], top_and_bot["bot"][2], top_and_bot["top"][2], top_and_bot["top"][1]]
+            find_QR, data = check_QR_code(Image, points_of_edge)
+            if find_QR:
+                print("QR code detected. Data: {}".format(data)) 
+            elif top_and_bot["top"][3] != []:
+                points_of_edge = [top_and_bot["top"][0], top_and_bot["top"][1], top_and_bot["top"][2], top_and_bot["top"][3]]
+                find_QR, data = check_QR_code(Image, points_of_edge)
+                if find_QR:
+                    print("QR code detected. Data: {}".format(data)) 
+                else:
+                    print("QR code not detected.")
+        elif top_and_bot["top"][3] != []:
+            points_of_edge = [top_and_bot["top"][0], top_and_bot["top"][1], top_and_bot["top"][2], top_and_bot["top"][3]]
+            find_QR, data = check_QR_code(Image, points_of_edge)
+            if find_QR:
+                print("QR code detected. Data: {}".format(data)) 
+            else:
+                print("QR code not detected.")
+    
+    
 
-    print(coord_bot)
-    print(coord_top)
     # points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
     # print(check_QR_code(Image, points_of_edge))
 
     return top_and_bot
 
 if __name__ == "__main__":
-    im_src = cv2.imread("./QR-codes/photos/image3.png")
+    im_src = cv2.imread("./QR-codes/photos/image6.png")
     cv2.imshow('Sizing',im_src)
     # points_of_edge = [ [243, 335], [313, 331], [320, 237], [247, 235] ] # for old image
     # points_of_edge = [ [210, 363], [286, 363], [290, 269], [208, 262] ] #image0 small
     # points_of_edge = [ [174, 264], [233, 252], [234, 161], [172, 165] ] #image1 small
     # points_of_edge = [ [269, 144], [318, 153], [322, 71], [272, 62]   ] #image2 small
-    points_of_edge = [ [401, 224], [458, 227], [472, 142], [412, 130] ] #image3 small
+    # points_of_edge = [ [401, 224], [458, 227], [472, 142], [412, 130] ] #image3 small
     # points_of_edge = [ [421, 255], [424, 200], [315, 201], [314, 257] ] #image4 small
     # points_of_edge = [ [377, 195], [475, 199], [481, 146], [387, 146]  ] #image5 small
     # points_of_edge = [ [349, 313], [412, 296], [350, 229], [295, 245] ] #image6 small
@@ -237,9 +327,11 @@ if __name__ == "__main__":
     
     # print(check_QR_code(im_src, points_of_edge))
 
+    # cornels = [ [210, 363], [286, 363], [296, 221], [290, 269], [208, 262], [227, 218]] # image0 small
     # cornels = [ [174, 264], [163, 219], [222, 128], [162, 139], [233, 252], [234, 161], [172, 165] ] # image1 small
     # cornels = [ [174, 264], [163, 219], [162, 139], [233, 252], [234, 161], [172, 165] ] # image1_test small
-    cornels = [ [401, 224], [458, 227], [416, 108], [473, 112], [472, 142], [412, 130] ] #image3 small
+    # cornels = [ [401, 224], [458, 227], [416, 108], [473, 112], [472, 142], [412, 130] ] #image3 small
+    cornels = [ [349, 313], [412, 296], [350, 229], [295, 245], [352,369], [413, 346], [296, 289]] # image6 small
     # cornels = [ [472, 142], [412, 130],  [458, 227], [401, 224] ] #image3_alm test small
     print(anal_box(im_src, cornels))
 
