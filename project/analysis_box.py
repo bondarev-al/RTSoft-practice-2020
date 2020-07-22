@@ -221,7 +221,7 @@ def show_box(cent, angle, shape):
     data_out_boxes = json.dumps(data)
     client.publish("scene", data_out_boxes, qos=0, retain=False)
 
-def anal_box(Image, cornels):
+def do_analysis_box(Image, cornels):
     top_and_bot = sort_cornel(cornels)
     coord_top = [[], [], [], []]
     coord_bot = [[], [], [], []]
@@ -333,7 +333,7 @@ if __name__ == "__main__":
     # cornels = [ [401, 224], [458, 227], [416, 108], [473, 112], [472, 142], [412, 130] ] #image3 small
     cornels = [ [349, 313], [412, 296], [350, 229], [295, 245], [352,369], [413, 346], [296, 289]] # image6 small
     # cornels = [ [472, 142], [412, 130],  [458, 227], [401, 224] ] #image3_alm test small
-    print(anal_box(im_src, cornels))
+    print(do_analysis_box(im_src, cornels))
 
     # cv2.imshow('after', im_out)
     # cv2.imshow('after_eq2', equ)
