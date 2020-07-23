@@ -245,7 +245,8 @@ def show_boxes(boxes):
     client.publish("scene", data_out_boxes, qos=0, retain=False)
 
 def do_analysis_box(Image, cornels):
-    top_and_bot = sort_cornel(cornels)
+    temp_cornels = list(cornels)
+    top_and_bot = sort_cornel(temp_cornels)
     coord_top = [[], [], [], []]
     coord_bot = [[], [], [], []]
     coord_bot[0] = get_coord(top_and_bot["bot"][0])
@@ -288,43 +289,56 @@ def do_analysis_box(Image, cornels):
     # show_box(cent, angle, shape)
     # print([cent, angle, shape])
     # return [cent, angle, shape]
-
-    # print(coord_bot)
-    # print(coord_top)
-    # print(angle)
     
     find_QR = False
     points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
     find_QR, data = check_QR_code(Image, points_of_edge)
+    qr_res = "QR Data: "
     if find_QR:
-        print("QR code detected. Data: {}".format(data))
+        qr_res = str(data)
     else:
         if top_and_bot["bot"][2] != []:
             points_of_edge = [top_and_bot["bot"][1], top_and_bot["bot"][2], top_and_bot["top"][2], top_and_bot["top"][1]]
             find_QR, data = check_QR_code(Image, points_of_edge)
             if find_QR:
-                print("QR code detected. Data: {}".format(data)) 
+                qr_res += str(data)
             elif top_and_bot["top"][3] != []:
                 points_of_edge = [top_and_bot["top"][0], top_and_bot["top"][1], top_and_bot["top"][2], top_and_bot["top"][3]]
                 find_QR, data = check_QR_code(Image, points_of_edge)
                 if find_QR:
-                    print("QR code detected. Data: {}".format(data)) 
-                else:
-                    print("QR code not detected.")
+                    qr_res = str(data)
         elif top_and_bot["top"][3] != []:
             points_of_edge = [top_and_bot["top"][0], top_and_bot["top"][1], top_and_bot["top"][2], top_and_bot["top"][3]]
             find_QR, data = check_QR_code(Image, points_of_edge)
             if find_QR:
-                print("QR code detected. Data: {}".format(data)) 
-            else:
-                print("QR code not detected.")
-    
-    return [cent, angle, shape]
+                qr_res = str(data)
+    text = 'Size(mm): {} x {} x {}'.format(int(w * 10), int(d * 10), int(h *10))
+
+    if top_and_bot["top"][2] != []:
+        org = (top_and_bot["top"][2][0] + 5, top_and_bot["top"][2][1])
+        org_qr = (top_and_bot["top"][2][0] + 5, top_and_bot["top"][2][1] + 20)
+        org_l = (top_and_bot["top"][2][0] + 5, top_and_bot["top"][2][1] + 25)
+    else:
+        org = (top_and_bot["top"][1][0] + 5, top_and_bot["top"][1][1])
+        org_qr = (top_and_bot["top"][1][0] + 5, top_and_bot["top"][1][1] + 20)
+        org_l = (top_and_bot["top"][1][0] + 5, top_and_bot["top"][1][1] + 25)
+
+    color = (0, 0, 0)
+    # cv2.rectangle(Image, org_l, (org_l[0] + 190, org_l[1] - 40), (0, 255, 0), -1)
+    output = Image.copy()
+    cv2.rectangle(Image, org_l, (org_l[0] + 190, org_l[1] - 40), (0, 255, 0), -1)
+    cv2.addWeighted(Image, 0.5, output, 1 - .5, 0, output)
+
+    cv2.putText(output, text, org, cv2.FONT_HERSHEY_SIMPLEX, 0.45, color)
+    cv2.putText(output, qr_res, org_qr, cv2.FONT_HERSHEY_SIMPLEX, 0.45, color)
+    for cornel in cornels:
+        cv2.circle(output, (cornel[0], cornel[1]), 5, (0,0,255), -1)
+    cv2.imshow('Sizing',output)    
+    return output, [cent, angle, shape]
 
     # points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
     # print(check_QR_code(Image, points_of_edge))
 
-    return top_and_bot
 
 if __name__ == "__main__":
     im_src = cv2.imread("./QR-codes/photos/image0.png")
@@ -373,7 +387,9 @@ if __name__ == "__main__":
     # # print(boxes)
     for box_points in boxes_points:
         # print(box)
-        boxes.append(do_analysis_box(im_src, box_points))
+        im_src, box = do_analysis_box(im_src, box_points)
+        boxes.append(box)
+    cv2.imshow('Sizing',im_src)
     # do_analysis_box(im_src, boxes_points[0])
     # show_box(boxes[0][0], boxes[0][1], boxes[0][2])
     # print(boxes)
