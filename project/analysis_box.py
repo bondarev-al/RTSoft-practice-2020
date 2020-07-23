@@ -26,6 +26,14 @@ image_points = np.array([
     (500, 107)
 ], dtype="double")
 
+#Slava
+# image_points = np.array([
+#     (133, 186), 
+#     (541, 191), 
+#     (4, 287), 
+#     (635, 299)
+# ], dtype="double")
+
 model_points = np.array([
     (0.0, 0.0, 0.0),    
     (42, 0.0, 0.0), 
@@ -33,7 +41,8 @@ model_points = np.array([
     (42, 0.0, 28)
 ])
 
-camera_matrix, dist_matrix = load_coefficients('camera1.yml')
+# camera_matrix, dist_matrix = load_coefficients('camera1.yml')
+camera_matrix, dist_matrix = load_coefficients('./images/calibration.yml')
 ret, rotation_vector, translation_vector = cv2.solvePnP(model_points, image_points, camera_matrix, dist_matrix)
 
 rotM = cv2.Rodrigues(rotation_vector)[0]
@@ -166,10 +175,12 @@ def check_QR_code(im_src, points_of_edge):
     
     pts_src = np.array(points_of_edge)
     scale = dist_betw_points_bot(points_of_edge[0], points_of_edge[1]) / dist_betw_points_bot_top(points_of_edge[0], points_of_edge[3])
+    
+    # print(points_of_edge)
 
     h = 400
     w = int(h * scale)
-    im_dst = np.ones((h, w,1),np.uint8)*255
+    im_dst = np.ones((h, w, 1),np.uint8)*255
     pts_dst = np.array([ [0, h],[w, h],[w, 0],[0, 0] ])
     h, status = cv2.findHomography(pts_src, pts_dst)
     im_out = cv2.warpPerspective(im_src, h, (im_dst.shape[1],im_dst.shape[0]))
@@ -180,7 +191,7 @@ def check_QR_code(im_src, points_of_edge):
     equ = cv2.equalizeHist(b)
     # cv2.imshow('after_eq1', equ)
 
-    for i in range(100, 255, 1):
+    for i in range(100, 255, 3):
         test = im_out.copy()
         test[test > i] = 255
         test[test < 130] = 1
@@ -209,16 +220,28 @@ client.publish("scene", data_out_boxes, qos=0, retain=False)
 
 def show_box(cent, angle, shape):
     boxes = [{"id": "box_1", "position":  cent, "euler": [0, angle,  0],  "shape": shape, "color": [66, 0, 249]}]
-    # box_obj = {}
-    # box_obj["id"] = "box_2"
-    # box_obj["position"] = [0,  truck_h, 0]
-    # box_obj["euler"] = [0,  10,  0]
-    # box_obj["shape"] = [ 1,  1,  1]
-    # box_obj["color"] = [0, 0, 255]
-    # boxes.append(box_obj) 
     data["boxes"] = boxes
     data["trucks"] = truck_obj
     data_out_boxes = json.dumps(data)
+    client.publish("scene", data_out_boxes, qos=0, retain=False)
+
+def show_boxes(boxes):
+    temp_boxes = []
+    i = 3
+    for box in boxes:
+        box_obj = {}
+        box_obj["id"] = "box_" + str(i)
+        box_obj["position"] = box[0]
+        box_obj["euler"] = [0, box[1],  0]
+        box_obj["shape"] = box[2]
+        box_obj["color"] = [255, 0, 0]
+        temp_boxes.append(box_obj) 
+        i += 1
+    # print(temp_boxes)
+    data["boxes"] = temp_boxes
+    data["trucks"] = truck_obj
+    data_out_boxes = json.dumps(data)
+    # print("output: ", data_out_boxes)
     client.publish("scene", data_out_boxes, qos=0, retain=False)
 
 def do_analysis_box(Image, cornels):
@@ -262,7 +285,13 @@ def do_analysis_box(Image, cornels):
     cent[0] /= scale_v
     cent[1] = cent[1] / scale_v + truck_h
     cent[2] /= - scale_v
-    show_box(cent, angle, shape)
+    # show_box(cent, angle, shape)
+    # print([cent, angle, shape])
+    # return [cent, angle, shape]
+
+    # print(coord_bot)
+    # print(coord_top)
+    # print(angle)
     
     find_QR = False
     points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
@@ -290,7 +319,7 @@ def do_analysis_box(Image, cornels):
             else:
                 print("QR code not detected.")
     
-    
+    return [cent, angle, shape]
 
     # points_of_edge = [top_and_bot["bot"][0], top_and_bot["bot"][1], top_and_bot["top"][1], top_and_bot["top"][0]]
     # print(check_QR_code(Image, points_of_edge))
@@ -298,7 +327,7 @@ def do_analysis_box(Image, cornels):
     return top_and_bot
 
 if __name__ == "__main__":
-    im_src = cv2.imread("./QR-codes/photos/image6.png")
+    im_src = cv2.imread("./QR-codes/photos/image0.png")
     cv2.imshow('Sizing',im_src)
     # points_of_edge = [ [243, 335], [313, 331], [320, 237], [247, 235] ] # for old image
     # points_of_edge = [ [210, 363], [286, 363], [290, 269], [208, 262] ] #image0 small
@@ -331,9 +360,24 @@ if __name__ == "__main__":
     # cornels = [ [174, 264], [163, 219], [222, 128], [162, 139], [233, 252], [234, 161], [172, 165] ] # image1 small
     # cornels = [ [174, 264], [163, 219], [162, 139], [233, 252], [234, 161], [172, 165] ] # image1_test small
     # cornels = [ [401, 224], [458, 227], [416, 108], [473, 112], [472, 142], [412, 130] ] #image3 small
-    cornels = [ [349, 313], [412, 296], [350, 229], [295, 245], [352,369], [413, 346], [296, 289]] # image6 small
+    # cornels = [ [349, 313], [412, 296], [350, 229], [295, 245], [352,369], [413, 346], [296, 289]] # image6 small
     # cornels = [ [472, 142], [412, 130],  [458, 227], [401, 224] ] #image3_alm test small
-    print(do_analysis_box(im_src, cornels))
+    # print(do_analysis_box(im_src, cornels))
+
+    # boxes_points_ = box_rec.nn_caler(img)
+    # boxes_points = [[ [349, 313], [412, 296], [350, 229], [295, 245], [352,369], [413, 346], [296, 289]]]
+    boxes_points = [ [[380, 288], [355, 250], [365, 134], [390, 168], [426, 121], [456, 153], [442, 278]],
+                     [[188, 285], [157,255], [149, 204], [243, 171], [275, 193], [284, 252], [171, 231]]
+                    ]
+    boxes = []
+    # # print(boxes)
+    for box_points in boxes_points:
+        # print(box)
+        boxes.append(do_analysis_box(im_src, box_points))
+    # do_analysis_box(im_src, boxes_points[0])
+    # show_box(boxes[0][0], boxes[0][1], boxes[0][2])
+    # print(boxes)
+    show_boxes(boxes)
 
     # cv2.imshow('after', im_out)
     # cv2.imshow('after_eq2', equ)
